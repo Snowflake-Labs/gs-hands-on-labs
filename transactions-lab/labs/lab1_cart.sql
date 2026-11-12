@@ -18,7 +18,7 @@
   ------------
   -- in your terminal. your instructor shares the host, and psql prompts you to log in.
   --   export PGSSLMODE=require
-  --   psql -h <host> -p 5432 -d postgres -U user_xx
+
 
 
 set search_path to schema_xx;
