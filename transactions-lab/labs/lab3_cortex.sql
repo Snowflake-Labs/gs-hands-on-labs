@@ -5,10 +5,10 @@
 ------------
 -- Start of Lab #3: Recommendations
 ------------
--- Search and replace _xx with your UserID. ex: dba_xx --> dba_iron_man\n--\n-- Run this file in a Workspaces SQL file.
+-- Run this file in a Workspaces SQL file. No search and replace needed.
 --
 -- The story: Frost Bites wants "you might also like" on the webstore.
--- The order history you mirrored in Lab 2 is the input.
+-- The live store's sales book, which you mirrored in Lab 2, is the input.
 --
 -- HANDOFF CONTRACT (same columns as recommendations in the Interactive lab):
 --   hol.schema_xx.recommendations (
@@ -19,20 +19,34 @@
 --       generated_at  timestamp_ntz
 --   )
 --
--- INPUTS (from the mirror, or hol.frostbites_backup on the backup path):
---   frostbites_mirror.schema_xx.products     -- includes flavor, texture and ways to eat per fruit
---   frostbites_mirror.schema_xx.orders
---   frostbites_mirror.schema_xx.cart_items
---   frostbites_mirror.schema_xx.customers
---   @hol.public.vendor_contracts               -- four supplier contract PDFs (setup.sql section H)
+-- INPUTS (from the mirror):
+--   frostbites_mirror.store.products   -- includes flavor, texture and ways to eat per fruit
+--   frostbites_mirror.store.customers
+--   frostbites_mirror.store.sales      -- the store's past sales plus your own
+--   @hol.public.vendor_contracts       -- four supplier contract PDFs (setup.sql section G)
 
 ------------
 -- 3.0 Setup
 ------------
-use role dba_xx;
-use database hol;
-use schema schema_xx;
-use warehouse txn_wh_xx;
+set (me, who) = (select replace(lower(current_user()), 'user_', ''), lower(current_user()));
+set (role_name, wh_name, my_schema, lake_schema, lake_table) = (
+    select 'dba_' || $me, 'txn_wh_' || $me, 'hol.schema_' || $me,
+           'frostbites_lake.lake_' || $me, 'frostbites_lake.lake_' || $me || '.fruit_shipments');
+
+use role identifier($role_name);
+use schema identifier($my_schema);
+use warehouse identifier($wh_name);
+
+-- the sales this lab learns from: the store's past sales ('store') plus your own.
+-- order ids come from one shared counter, so every order has its own number.
+-- you are customer 1 in your sandbox, so your lab 1 and lab 2 checkouts are your history.
+create or replace view my_sales as
+select order_id as order_key, customer_id, product_id, qty
+from frostbites_mirror.store.sales
+where attendee in ('store', $who);
+
+select count(*) as lines, count(distinct order_key) as orders from my_sales;
+-- about 1,570 lines and 506 orders from the store, plus yours
 
 
 ------------
@@ -44,28 +58,26 @@ use warehouse txn_wh_xx;
 create or replace table recommendations_baseline as
 
 -- favorites: every shopper's #1 fruit.
--- only carts that were paid for count (that's why it joins to orders).
+-- every line in the sales book is a paid sale.
 -- add up how many of each fruit a shopper bought, rank them, keep the top one.
 -- ex: a shopper who bought 3 lychees and 1 rambutan has lychee as their favorite.
 with favorites as (
-    select o.customer_id, ci.product_id
-    from frostbites_mirror.schema_xx.orders o
-    join frostbites_mirror.schema_xx.cart_items ci on ci.cart_id = o.cart_id
-    group by o.customer_id, ci.product_id
-    qualify row_number() over (partition by o.customer_id order by sum(ci.qty) desc, ci.product_id) = 1
+    select customer_id, product_id
+    from my_sales
+    group by customer_id, product_id
+    qualify row_number() over (partition by customer_id order by sum(qty) desc, product_id) = 1
 ),
 
--- bought_together: which fruits end up in the same cart, and how often.
--- cart_items is joined to itself so each fruit in a cart gets paired with
--- every other fruit in that same cart.
--- ex: a cart with lychee and rambutan counts once for lychee+rambutan and once
+-- bought_together: which fruits end up in the same order, and how often.
+-- my_sales is joined to itself so each fruit in an order gets paired with
+-- every other fruit in that same order.
+-- ex: an order with lychee and rambutan counts once for lychee+rambutan and once
 -- for rambutan+lychee.
--- this one counts every cart, even carts nobody paid for.
 bought_together as (
     select a.product_id, b.product_id as also_bought_id, count(*) as times_together
-    from frostbites_mirror.schema_xx.cart_items a
-    join frostbites_mirror.schema_xx.cart_items b
-      on a.cart_id = b.cart_id and a.product_id <> b.product_id
+    from my_sales a
+    join my_sales b
+      on a.order_key = b.order_key and a.product_id <> b.product_id
     group by a.product_id, b.product_id
 )
 
@@ -80,11 +92,11 @@ select
     current_timestamp()::timestamp_ntz                  as generated_at
 from favorites f
 join bought_together bt on bt.product_id = f.product_id
-join frostbites_mirror.schema_xx.products p on p.product_id = f.product_id
+join frostbites_mirror.store.products p on p.product_id = f.product_id
 qualify row_number() over (partition by f.customer_id order by bt.times_together desc) <= 5;
 
 select * from recommendations_baseline where customer_id = 1 order by score desc;
--- Maya's picks come from the order she placed in lab 1. no lab 1 order = no rows for her.
+-- your picks come from the orders you placed in labs 1 and 2. no order = no rows for you.
 
 
 ------------
@@ -103,7 +115,7 @@ select
     ways_to_eat,
     ai_embed('snowflake-arctic-embed-l-v2.0',
              'Flavor: ' || flavor || '. Texture: ' || texture || '.') as taste_vec
-from frostbites_mirror.schema_xx.products;
+from frostbites_mirror.store.products;
 
 -- how alike is every pair of fruits? 1 = same taste, lower = less alike
 -- joining product_vectors to itself pairs every fruit with every other fruit
@@ -129,12 +141,13 @@ limit 5;
 -- 3.3 Read the vendor contracts
 ------------
 -- Frost Bites' suppliers send contracts as PDFs. look at one as text first:
--- to_file points at one file on the stage. ai_parse_document reads it and returns an
--- object. :content is the document text. LAYOUT mode keeps headings and tables.
-select ai_parse_document(
+-- to_file points at one file on the stage. ai_parse_document reads it and returns JSON.
+-- :content is the document text. LAYOUT mode keeps headings and tables.
+-- parse_json(to_varchar(...)) works whether the result comes back as a string or an object.
+select parse_json(to_varchar(ai_parse_document(
            to_file('@hol.public.vendor_contracts', 'durian_kampung_emas.pdf'),
            {'mode': 'LAYOUT'}
-       ):content::string as contract_text;
+       ))):content::string as contract_text;
 
 -- now pull the same fields out of every contract into a table
 create or replace table vendor_terms as
@@ -189,12 +202,11 @@ order by v.fruit;
 -- each CTE below does one step. read them top to bottom.
 create or replace table recommendations as
 
--- checked_out_items: every fruit from every paid-for cart, plus who bought it.
--- everything below starts here, so carts nobody paid for are ignored.
+-- checked_out_items: every fruit from every paid-for order, plus who bought it.
+-- everything below starts here. cart_id is the order_key from my_sales.
 with checked_out_items as (
-    select o.customer_id, ci.cart_id, ci.product_id, ci.qty
-    from frostbites_mirror.schema_xx.orders o
-    join frostbites_mirror.schema_xx.cart_items ci on ci.cart_id = o.cart_id
+    select customer_id, order_key as cart_id, product_id, qty
+    from my_sales
 ),
 
 -- favorites: every shopper's #1 fruit, same idea as 3.1.
@@ -225,7 +237,7 @@ seeds as (
         c.customer_id,
         coalesce(f.product_id, t.product_id) as seed_id,
         f.product_id is null                 as is_fallback
-    from frostbites_mirror.schema_xx.customers c
+    from frostbites_mirror.store.customers c
     cross join top_seller t
     left join favorites f on f.customer_id = c.customer_id
 ),
@@ -301,7 +313,7 @@ scored as (
 -- final score and reason, top 5 per shopper.
 -- score: weighted sum of the rescaled signals. promo adds a flat 0.10 if there is any discount.
 -- reason: fallback shoppers get a generic line. everyone else sees their favorite's name.
---         a promo adds "Now N% off". 3.5 rewrites Maya's reasons with the LLM.
+--         a promo adds "Now N% off". 3.5 rewrites your reasons with the LLM.
 -- the join to product_vectors gets the seed fruit's name.
 select
     s.customer_id,
@@ -316,7 +328,7 @@ from scored s
 join product_vectors seed on seed.product_id = s.seed_id
 qualify row_number() over (partition by s.customer_id order by score desc, s.product_id) <= 5;
 
--- Maya's picks
+-- your picks
 select p.name, round(r.score, 3) as score, r.reason
 from recommendations r
 join product_vectors p on p.product_id = r.product_id
@@ -325,27 +337,28 @@ order by r.score desc;
 
 
 ------------
--- 3.5 Let the LLM write Maya's reasons
+-- 3.5 Let the LLM write your reasons
 ------------
--- one short sentence per pick, only for Maya (5 calls).
--- claude-sonnet-5-5 needs cross-region inference (setup.sql A.3).
--- if a call fails, coalesce keeps the reason from 3.4.
+-- one short sentence per pick, only for you, customer 1 (5 calls).
+-- frontier models need cross-region inference (setup.sql A.3).
+-- if a call fails or comes back empty, the reason from 3.4 stays.
 --
 -- how the update works:
---   r   = Maya's 5 rows in recommendations
+--   r   = your 5 rows in recommendations
 --   p   = the recommended fruit (joined on p.product_id = r.product_id)
 --   vt  = that fruit's vendor contract, if it has one
---   fav = one row: Maya's favorite fruit (subquery at the bottom)
--- each of Maya's rows gets one ai_complete call with a prompt built from those facts.
+--   fav = one row: your favorite fruit (subquery at the bottom)
+-- each of your rows gets one ai_complete call with a prompt built from those facts.
 --
 -- the prompt lists the facts and says "use only these facts", so the model doesn't
 -- invent details. the contract line is wrapped in coalesce(..., ''): joining text
 -- with || to a null gives null, so a fruit with no contract drops that line.
 -- temperature 0 gives the same answer each run. max_tokens caps the reply length.
 -- trim(..., '" ') removes quotes and spaces the model sometimes puts around the reply.
+-- nullif(..., '') turns an empty reply into null, so coalesce keeps the reason from 3.4.
 update recommendations r
-set reason = coalesce(trim(ai_complete(
-        'claude-sonnet-5-5',
+set reason = coalesce(nullif(trim(ai_complete(
+        'claude-sonnet-4-6',
         'Write one friendly sentence, under 25 words, recommending ' || p.name
         || ' to a shopper whose favorite fruit is ' || fav.name || '. '
         || 'Use only these facts and add nothing else. '
@@ -361,19 +374,18 @@ set reason = coalesce(trim(ai_complete(
         || 'Start the sentence with the word ' || p.name || ' and end it with one way to eat it. '
         || 'Reply with the sentence only, no quotes.',
         {'temperature': 0, 'max_tokens': 120}
-    ), '" '), r.reason)
+    ), '" '), ''), r.reason)
 from product_vectors p
      left join vendor_terms vt on lower(vt.fruit) = lower(p.name),
-     -- fav: Maya's most-bought fruit, same rule as favorites in 3.4.
+     -- fav: your most-bought fruit, same rule as favorites in 3.4.
      -- the comma is a cross join with this one row.
-     -- no lab 1 order for Maya means no row here, so the update changes nothing.
+     -- no sale for you means no row here, so the update changes nothing.
      (select pv.name, pv.flavor, pv.texture
-      from frostbites_mirror.schema_xx.orders o
-      join frostbites_mirror.schema_xx.cart_items ci on ci.cart_id = o.cart_id
-      join product_vectors pv on pv.product_id = ci.product_id
-      where o.customer_id = 1
+      from my_sales s
+      join product_vectors pv on pv.product_id = s.product_id
+      where s.customer_id = 1
       group by pv.product_id, pv.name, pv.flavor, pv.texture
-      qualify row_number() over (order by sum(ci.qty) desc, pv.product_id) = 1) fav
+      qualify row_number() over (order by sum(s.qty) desc, pv.product_id) = 1) fav
 where r.customer_id = 1
   and p.product_id = r.product_id;
 
@@ -385,10 +397,10 @@ order by r.score desc;
 
 
 ------------
--- 3.6 Before and after: Maya's picks without AI and with AI
+-- 3.6 Before and after: your picks without AI and with AI
 ------------
--- before_ai: Maya's picks from 3.1, numbered 1 to 5 from best score down.
--- with_ai: Maya's picks from 3.4 and 3.5, numbered the same way.
+-- before_ai: your picks from 3.1, numbered 1 to 5 from best score down.
+-- with_ai: your picks from 3.4 and 3.5, numbered the same way.
 -- the full outer join puts pick 1 next to pick 1, pick 2 next to pick 2, and so on.
 -- if one list is shorter, the missing picks show up empty instead of disappearing.
 with before_ai as (

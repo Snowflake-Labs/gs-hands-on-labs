@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Frost Bites storefront: architecture</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; width: 1600px; height: 860px; background: #ffffff; color: #11567F;
+         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .wrap { padding: 36px 44px; }
+  h1 { margin: 0; font-size: 34px; color: #11567F; }
+  .sub { margin: 6px 0 26px; font-size: 18px; color: #5b7a8c; }
+
+  .row { display: grid; align-items: stretch; }
+  .row.top { grid-template-columns: 330px 90px 1fr 90px 1fr; }
+  .row.bottom { grid-template-columns: 1fr 1fr 1fr; gap: 24px; }
+  .down { margin: 14px 0; text-align: center; font-size: 16px; color: #5b7a8c; }
+  .down b { font-size: 26px; color: #29B5E8; margin-right: 10px; vertical-align: -3px; }
+
+  .box { background: #f4f9fc; border: 2px solid #d0e8f2; border-radius: 14px; padding: 16px 18px; }
+  .box h3 { margin: 0 0 4px; font-size: 21px; }
+  .box .where { font-size: 14px; color: #5b7a8c; margin-bottom: 10px; }
+  .tag { display: inline-block; font-size: 13px; font-weight: 700; color: #fff; background: #29B5E8;
+         border-radius: 999px; padding: 3px 11px; margin-bottom: 8px; }
+  .tag.p1 { background: #11567F; }
+  .tag.p2 { background: #FF8B00; }
+  .tag.p3 { background: #36B37E; }
+  .tag.m  { background: #6554C0; }
+  ul { margin: 0; padding-left: 20px; font-size: 16px; line-height: 1.55; }
+  code { background: #e3f1f8; border-radius: 4px; padding: 1px 6px; font-size: 14px; color: #0b3a55; }
+
+  .maya { background: #29B5E8; color: #fff; border: 0; text-align: center; }
+  .maya .face { width: 76px; height: 76px; border-radius: 50%; background: #fff; color: #29B5E8;
+                font-size: 32px; font-weight: 800; display: flex; align-items: center; justify-content: center; margin: 4px auto 10px; }
+  .maya h3 { color: #fff; font-size: 24px; }
+  .maya p { margin: 6px 0 0; font-size: 16px; line-height: 1.45; }
+
+  .grace { background: #0f2a3d; color: #d6eefb; border: 0; }
+  .grace h3 { color: #fff; }
+
+  .p1box { border-color: #11567F; } .p2box { border-color: #FF8B00; } .p3box { border-color: #36B37E; } .mbox { border-color: #6554C0; }
+
+  .arrow { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+           font-size: 13px; color: #5b7a8c; line-height: 1.3; }
+  .arrow b { font-size: 34px; color: #29B5E8; line-height: 1; }
+  .arrow span { max-width: 66px; }
+
+  .foot { margin-top: 22px; display: flex; gap: 34px; font-size: 15px; color: #5b7a8c; align-items: center; }
+  .foot i { display: inline-block; width: 14px; height: 14px; border-radius: 4px; margin-right: 7px; vertical-align: -2px; }
+  .line { margin-top: 18px; font-size: 22px; font-weight: 700; color: #11567F; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Frost Bites storefront: how the pieces fit</h1>
+  <div class="sub">One shop, three ways to use it. Maya shops once, and each part of the platform picks up from there.</div>
+
+  <div class="row top">
+
+    <div class="box maya">
+      <div class="face">M</div>
+      <h3>Maya Patel</h3>
+      <p>Shopper, customer 1.<br>Wants new fruit she will love, a safe checkout and fast pages.</p>
+    </div>
+
+    <div class="arrow"><b>&rarr;</b><span>cart and checkout</span></div>
+
+    <div class="box p1box">
+      <span class="tag p1">PART 1 &middot; Postgres</span>
+      <h3>Snowflake Postgres</h3>
+      <div class="where">Lab 1 &middot; run in <b>psql</b></div>
+      <ul>
+        <li>Your <b>sandbox</b> <code>user_xx</code>: carts, cart items, orders</li>
+        <li>The <b>live store</b> <code>store</code>: products, customers, sales</li>
+        <li>Checkout is <b>one transaction</b>: all or nothing</li>
+        <li>The sales book only ever <b>appends</b></li>
+      </ul>
+    </div>
+
+    <div class="arrow"><b>&rarr;</b><span>Data Mirroring, no ETL</span></div>
+
+    <div class="box mbox">
+      <span class="tag m">PART 1 &middot; Lab 2</span>
+      <h3>Snowflake: the store, mirrored</h3>
+      <div class="where">Run in <b>Workspaces</b></div>
+      <ul>
+        <li><code>frostbites_mirror</code>: Iceberg copy of the store, plus <code>$live</code> and <code>$changes</code></li>
+        <li><code>frostbites_lake</code>: Iceberg tables you create with <b>pg_lake</b></li>
+        <li>Manager's report: top fruits, sales by hour, what is running low</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="down"><b>&darr;</b> two more ways to use the store: Cortex reads the mirror, then Interactive serves the store fast from its own webstore tables</div>
+
+  <div class="row bottom">
+
+    <div class="box p3box">
+      <span class="tag p3">PART 2 &middot; Cortex</span>
+      <h3>Picks and assistants</h3>
+      <div class="where">Lab 3 and Lab 3B &middot; run in <b>Workspaces</b></div>
+      <ul>
+        <li>Taste embeddings, supplier contracts read with <b>AI_PARSE_DOCUMENT</b>, an LLM writes each reason</li>
+        <li>Output: <code>recommendations</code> for Maya</li>
+        <li>Two <b>Cortex Agents</b>: <b>Frost Bites Intelligence</b> and <b>Assistant</b></li>
+        <li><b>Roles and secure views</b> decide what each agent can show</li>
+      </ul>
+    </div>
+
+    <div class="box p2box">
+      <span class="tag p2">PART 3 &middot; Interactive</span>
+      <h3>Fast pages on Durian Day</h3>
+      <div class="where">3 labs &middot; run in <b>Workspaces</b></div>
+      <ul>
+        <li><b>Interactive Tables</b>: <code>product_page</code>, <code>customer_recs</code>, <code>top_sellers</code></li>
+        <li><b>Interactive Warehouse</b> keeps them warm for many shoppers at once</li>
+        <li><code>top_sellers</code> refreshes itself every minute</li>
+      </ul>
+    </div>
+
+    <div class="box grace">
+      <h3>Grace Holloway</h3>
+      <div class="where" style="color:#9cc9de">Head of Produce &middot; asks Frost Bites Intelligence</div>
+      <ul>
+        <li>What sold, and when do sales peak?</li>
+        <li>What is running low?</li>
+        <li>Who supplies the durian, and at what price?</li>
+      </ul>
+      <p style="margin:12px 0 0;font-size:15px;color:#9cc9de">Maya asks the Assistant and sees only her own picks and purchases. Same question about the durian supplier, different role, different answer.</p>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div><i style="background:#11567F"></i>Part 1: Postgres</div>
+    <div><i style="background:#36B37E"></i>Part 2: Cortex</div>
+    <div><i style="background:#FF8B00"></i>Part 3: Interactive</div>
+    <div><i style="background:#6554C0"></i>Mirror and lake</div>
+  </div>
+  <div class="line">Write like Postgres, analyze like Snowflake, on one governed platform.</div>
+</div>
+</body>
+</html>
