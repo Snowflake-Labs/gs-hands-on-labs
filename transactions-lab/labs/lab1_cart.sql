@@ -1,6 +1,6 @@
---**********
+--***********
 -- Frost Bites Supermarket: Snowflake Postgres Hands-on Lab
---**********
+--***********
 
 ------------
 -- Start of Lab #1: Your Sandbox, Your First Order
