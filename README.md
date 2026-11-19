@@ -60,19 +60,12 @@ Do the parts in order. Each part builds on the one before.
 12. **Keep them warm.** An Interactive Warehouse serves the lookups, and you compare timings against a normal warehouse.
 13. **The flash sale starts.** `top_sellers` refreshes itself every minute, with no pipeline and no manual rebuild.
 
-## How to guide the room
+## Tips for running the labs
 
-**Before class.** The instructor runs the setup scripts once and checks that everything works. Attendees get a hero name (for example `batman`), a Snowflake login and the Postgres password.
-
-**During class.**
-1. Spend about 15 minutes on the talk track, then show the diagram above.
-2. Walk through the labs in the order on this page. Say which tool each lab uses.
-3. Tell attendees to run one step at a time and compare with the `expect` line under it.
-4. Call out the steps that are meant to fail, so nobody thinks they broke something. In Lab 1.2 the guard rails reject bad data, and in Lab 3B step 3.11 the shopper can't read the supplier tables.
-5. The mirror syncs about every minute. If a result isn't there yet, wait a moment and run it again.
-6. AI steps (embeddings, contract reading, the LLM reasons, the agents) take seconds to a couple of minutes.
-
-**What to say at the end.** One governed platform: the app database, the AI, the fast reads and the analytics all use the same roles and the same data.
+- Run one step at a time and compare the result with the `expect` line under it.
+- Some steps are meant to fail, so you can see what the database protects. In Lab 1.2 the guard rails reject bad data, and in Lab 3B step 3.11 the shopper can't read the supplier tables.
+- The mirror syncs about every minute. If a result isn't there yet, wait a moment and run it again.
+- AI steps (embeddings, contract reading, the LLM reasons, the agents) take seconds to a couple of minutes.
 
 ## Notes
 
