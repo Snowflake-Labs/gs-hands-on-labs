@@ -39,7 +39,7 @@ use warehouse identifier($wh_name);
 
 -- the sales this lab learns from: the store's past sales ('store') plus your own.
 -- order ids come from one shared counter, so every order has its own number.
--- you are customer 1 in your sandbox, so your lab 1 and lab 2 checkouts are your history.
+-- you are Maya Patel, customer 1, in your sandbox, so your lab 1 and lab 2 checkouts are your history.
 create or replace view my_sales as
 select order_id as order_key, customer_id, product_id, qty
 from frostbites_mirror.store.sales

@@ -31,7 +31,7 @@ Do the parts in order. Each part builds on the one before.
 | 1. Postgres | [Lab 2: Postgres to Snowflake](transactions-lab/labs/lab2_mirror_and_lake.sql) | Workspaces and psql | Mirror the store, build a report |
 | 2. Cortex | [Lab 3: recommendations](transactions-lab/labs/lab3_cortex.sql) | Workspaces | Pick fruit for Maya with AI |
 | 2. Cortex | [Lab 3B: two assistants](transactions-lab/labs/lab3b_assistants.sql) (optional) | Workspaces | Manager and shopper agents, one store |
-| 3. Interactive | [Interactive Tables labs 1 to 3](interactive-labs/) | Workspaces | Serve pages fast, keep them fresh |
+| 3. Interactive | [Interactive Tables lab](interactive-labs/labs/lab.sql) (three labs in one file) | Workspaces | Serve pages fast, keep them fresh |
 | Bonus | [Lab 4: Hybrid Tables](transactions-lab/labs/lab4_hybrid_tables.sql) | Workspaces | The same checkout, inside Snowflake |
 
 **Where to paste.** Lab 1 runs in psql, not in a worksheet. Paste one step at a time and check the result under it before you go on. Every other lab runs in a Workspaces SQL file.
@@ -77,6 +77,6 @@ Do the parts in order. Each part builds on the one before.
 ## Notes
 
 - **Run the interactive setup with care.** It rebuilds the `recommendations` table with plain "bought together" picks for 10,000 shoppers. Run after Lab 3, it replaces Maya's AI picks, and `customer_recs` then serves the plain ones. Rerun Lab 3 to get her AI picks back.
-- Interactive Tables labs use search and replace: change `_xx` to your hero name (for example `dba_xx` becomes `dba_batman`). The interactive setup takes about 20 seconds.
+- The interactive lab is one file, `lab.sql`, with three labs in it. Search and replace `_xx` with your hero name (for example `dba_xx` becomes `dba_batman`). The instructor builds the webstore data once by running `interactive-labs/setup/setup_notebook.ipynb` in a Snowsight notebook.
 - The Transactions labs need no search and replace, except `lake_xx` in Lab 2 step 2.6.
 - Data Mirroring is in Public Preview on AWS and Azure.

@@ -34,6 +34,11 @@ use role identifier($role_name);
 use schema identifier($my_schema);
 use warehouse identifier($wh_name);
 
+-- check before you start: this returns true when your shopper role (storefront_xx) is ready.
+-- if it returns false, stop and ask your instructor to run the storefront role setup.
+select array_contains(('STOREFRONT_' || upper($me))::variant, parse_json(current_available_roles())) as storefront_role_ready;
+-- expect true
+
 
 ------------
 -- 3.7 A semantic view of the whole store
@@ -62,7 +67,7 @@ create or replace semantic view frostbites_sv
     ) primary key (product_id)
       comment = 'Stock left on the shelf: opening stock minus what the class sold',
     customers as frostbites_mirror.store.customers primary key (customer_id)
-      comment = 'Webstore shoppers. Customer 1 is you',
+      comment = 'Webstore shoppers. Customer 1 is Maya Patel, the shopper you play',
     supplier_terms as (
         select p.product_id, vt.supplier, vt.origin, vt.is_organic, vt.promo_pct
         from vendor_terms vt
@@ -278,7 +283,7 @@ call ask('store_manager_assistant', 'Who supplies the durian, at what price per 
 -- as a shopper you get your own role (storefront_xx) and see only these secure views.
 -- a secure view runs as its owner (dba_xx), so storefront_xx needs no access to the
 -- mirror or to vendor_terms. it also hides its definition from the shopper.
--- you are customer 1.
+-- you are Maya Patel, customer 1.
 create or replace secure view my_picks as
 select product_id, score, reason
 from recommendations

@@ -1,0 +1,4 @@
+# Code owners for the Frost Bites storefront hands-on lab.
+# Each line is a file pattern followed by the GitHub users who review changes to it.
+
+* @sfc-gh-senuga @sfc-gh-jurrutia @sfc-gh-ablock
