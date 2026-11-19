@@ -76,7 +76,7 @@ Do the parts in order. Each part builds on the one before.
 
 ## Notes
 
-- **Run the interactive setup with care.** It rebuilds the `recommendations` table with plain "bought together" picks for 10,000 shoppers. Run after Lab 3, it replaces Maya's AI picks, and `customer_recs` then serves the plain ones. Rerun Lab 3 to get her AI picks back.
-- The interactive lab is one file, `lab.sql`, with three labs in it. Search and replace `_xx` with your hero name (for example `dba_xx` becomes `dba_batman`). The instructor builds the webstore data once by running `interactive-labs/setup/setup_notebook.ipynb` in a Snowsight notebook.
+- The interactive lab is one file, [`lab.sql`](interactive-labs/labs/lab.sql), with three labs in it. Search and replace `_xx` with your hero name (for example `dba_xx` becomes `dba_batman`).
+- The interactive lab needs the webstore data (`products`, `customers`, `orders`, `order_items` and `recommendations`) and the `std_wh_xx` warehouse. Your instructor builds them before the lab. That setup rebuilds `recommendations`, so it should run before Lab 3 (Cortex), or Maya's AI picks are replaced.
 - The Transactions labs need no search and replace, except `lake_xx` in Lab 2 step 2.6.
 - Data Mirroring is in Public Preview on AWS and Azure.
