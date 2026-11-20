@@ -5,9 +5,8 @@
 ------------
 -- Start of Lab #4 (Bonus): Hybrid Tables
 ------------
--- Search and replace _xx with your UserID. ex: dba_xx --> dba_iron_man
---
--- Run this file in a Workspaces SQL file. You'll need a second SQL file for step 4.4.
+-- Run this file in a Workspaces SQL file. No search and replace needed.
+-- You'll need a second SQL file for step 4.4.
 --
 -- The story: same store, same checkout, but this time built with Hybrid
 -- Tables, inside Snowflake itself. No Postgres instance, no mirror.
@@ -15,10 +14,12 @@
 ------------
 -- 4.0 Setup
 ------------
-use role dba_xx;
-use database hol;
-use schema schema_xx;
-use warehouse txn_wh_xx;
+set me = (select replace(lower(current_user()), 'user_', ''));
+set (role_name, wh_name, my_schema) = (select 'dba_' || $me, 'txn_wh_' || $me, 'hol.schema_' || $me);
+
+use role identifier($role_name);
+use schema identifier($my_schema);
+use warehouse identifier($wh_name);
 
 
 ------------
@@ -52,17 +53,17 @@ create or replace hybrid table ht_orders (
     ordered_at  timestamp default current_timestamp()
 );
 
--- load the fruit aisle from the normal tables
+-- load the fruit aisle from the live store's catalog (the mirror)
 insert into ht_products
-select product_id, name, price, stock_qty
-from hol.frostbites_backup.products;
+select product_id, name, price, opening_stock
+from frostbites_mirror.store.products;
 
 -- your four ht_ tables
 show hybrid tables;
 
 
 ------------
--- 4.2 Build Maya's cart
+-- 4.2 Build your cart
 ------------
 insert into ht_carts (customer_id) values (1);
 set cart_id = (select max(cart_id) from ht_carts where customer_id = 1);
@@ -120,10 +121,11 @@ show transactions;
 
 -- SHOPPER 2: open a SECOND SQL file and run (uncomment):
 --**********
--- use role dba_xx;
--- use database hol;
--- use schema schema_xx;
--- use warehouse txn_wh_xx;
+-- set me = (select replace(lower(current_user()), 'user_', ''));
+-- set (role_name, wh_name, my_schema) = (select 'dba_' || $me, 'txn_wh_' || $me, 'hol.schema_' || $me);
+-- use role identifier($role_name);
+-- use schema identifier($my_schema);
+-- use warehouse identifier($wh_name);
 -- update ht_products set stock_qty = stock_qty - 1 where product_id = 4;
 -- (this WAITS for shopper 1)
 --**********
@@ -150,11 +152,11 @@ update ht_products set stock_qty = stock_qty - 1 where product_id = 4 and stock_
 ------------
 -- 4.5 No mirror needed: join live rows with analytics tables
 ------------
--- Hybrid Tables live in Snowflake, so you can join them with normal
--- tables directly.
+-- Hybrid Tables live in Snowflake, so you can join them with the mirrored
+-- store tables directly. Postgres needed the mirror to get here.
 select o.order_id, c.name as customer, o.total, o.ordered_at
 from ht_orders o
-join hol.frostbites_backup.customers c on c.customer_id = o.customer_id;
+join frostbites_mirror.store.customers c on c.customer_id = o.customer_id;
 
 
 ------------
